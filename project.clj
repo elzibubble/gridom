@@ -22,7 +22,7 @@
               [{:id "dev"
                 :source-paths ["src"]
 
-                ;:figwheel {:on-jsload "gridom.core/on-js-reload"}
+                :figwheel {:on-jsload "gridom.core/on-js-reload"}
 
                 :compiler {:main gridom.core
                            :asset-path "js/compiled/out"

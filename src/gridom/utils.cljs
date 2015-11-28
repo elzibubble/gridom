@@ -1,9 +1,10 @@
 (ns gridom.utils)
 
+(defn abs [n] (max n (- n)))
+
 (defn hsv->rgb [h s v]
   (let [c (* v s)
-        xp (- (mod (/ h 60) 2) 1)
-        x (* c (- 1 (max xp (- xp))))
+        x (* c (- 1 (abs (- (mod (/ h 60) 2) 1))))
         m (- v c)
         [rp gp bp] (cond (< h  60) [c, x, 0]
                          (< h 120) [x, c, 0]

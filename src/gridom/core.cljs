@@ -10,8 +10,8 @@
             (zipmap (range size) (repeat maxhp)))
        ))
 
-;; defonce so this only initializes on hard reload
-(defonce app-state (atom (let
+; defonce to make this only initialize on hard reload
+(def app-state (atom (let
                            [rows 5
                             cols 5
                             size (* rows cols)
@@ -24,7 +24,7 @@
                             :board (mkboard size maxhp)})))
 
 (defn hp->rgb [hp]
-  (apply utils/rgb->hexstr (hsv->rgb (* 1.20 hp) 1 0.75)))
+  (apply utils/rgb->hexstr (utils/hsv->rgb (* 1.20 hp) 1 0.75)))
 
 (defn draw-box [box]
   (dom/div #js {:className "box"}
@@ -45,9 +45,14 @@
   (draw-board (:board z)))
 
 (om/root
-  (fn [data owner]
+  (fn [data _owner]
     (reify om/IRender
       (render [_]
         (draw data))))
   app-state
   {:target (. js/document (getElementById "app"))})
+
+; This seems to be necessary for figwheel to connect!
+(defn on-js-reload []
+  ;; (swap! app-state update-in [:__figwheel_counter] inc)
+  )
