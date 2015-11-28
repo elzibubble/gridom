@@ -14,31 +14,36 @@
 }
 
 .board {
-  max-width: 385px;
+  max-width: 335px;
 }
 
 .box {
   height: 100px;
   width: 60px;
   margin: 0 5px 5px 0;
-  position: relative;
-
   border: solid 1px black;
-
-  text-align: center;
+  position: relative;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  -khtml-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
 }
 
 .box-shim {
   height: 100%;
   flex-flow: column;
   justify-content: flex-end;
+  pointer-events: none;
 }
 
-.box-guts {
+.box-hp {
   padding: 0;
   margin: 0 0 0 0;
   background-color: grey;
   width: 100%;
+  pointer-events: none;
 }
 
 .box-text {
@@ -47,4 +52,6 @@
   left: 0;
   right: 0;
   top: 40%;
+  text-align: center;
+  pointer-events: none;
 }
