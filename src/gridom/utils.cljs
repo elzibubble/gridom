@@ -1,10 +1,9 @@
 (ns gridom.utils)
-
-(defn abs [n] (max n (- n)))
+(enable-console-print!)
 
 (defn hsv->rgb [h s v]
   (let [c (* v s)
-        x (* c (- 1 (abs (- (mod (/ h 60) 2) 1))))
+        x (* c (- 1 (Math/abs (- (mod (/ h 60) 2) 1))))
         m (- v c)
         [rp gp bp] (cond (< h  60) [c, x, 0]
                          (< h 120) [x, c, 0]
@@ -26,4 +25,25 @@
 (defn rgb->hexstr [r g b]
   (str "#" (apply str (map byte->hex [r g b]))))
 
-(def select-values (comp vals select-keys))
+(defn powbend [n max e]
+  (/ (Math/pow n e) (Math/pow max e)))
+
+(defn hp->rgb [v]
+  (apply rgb->hexstr
+    (hsv->rgb
+      (* 120 (powbend v 100 2))
+      1
+      (- 1 (/ (powbend v 100 4) 3.5)))))
+
+(defn mana->rgb [v]
+  (apply rgb->hexstr
+    (hsv->rgb
+      240
+      0.75
+      (+ 0.5 (/ v 200)))))
+
+(defn minmax [lo v hi]
+  (max lo (min v hi)))
+
+(defn fmap [f m]
+  (into (empty m) (for [[k v] m] [k (f v)])))
