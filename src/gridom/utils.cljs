@@ -25,3 +25,5 @@
 
 (defn rgb->hexstr [r g b]
   (str "#" (apply str (map byte->hex [r g b]))))
+
+(def select-values (comp vals select-keys))

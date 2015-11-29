@@ -14,11 +14,11 @@
 }
 
 .board {
-  max-width: 335px;
+  max-width: 333px;
 }
 
 .box {
-  height: 100px;
+  height: 80px;
   width: 60px;
   margin: 0 5px 5px 0;
   border: solid 1px black;

@@ -8,7 +8,7 @@
 
 (defn mkbox [[id _v]]
   {:id id
-   :v  (* 4 id)})
+   :v 80})
 
 (defn mkboard [size maxhp]
   (vec (map mkbox
@@ -17,16 +17,16 @@
 
 ; defonce to make this only initialize on hard reload
 (def app-state
-  (atom (let [rows 5
-              cols 5
-              size (* rows cols)
-              maxhp 100]
+  (atom (let [rows_n 5
+              cols_n 5
+              size (* rows_n cols_n)
+              board (mkboard size 100)
+              rows (->> board (partition cols_n) (map vec) (into []))
+              cols (apply map vector rows)]
           {:mana  {:id 0 :v 100}
-           :rows  rows
-           :cols  cols
-           :size  size
-           :maxhp maxhp
-           :board (mkboard size maxhp)})))
+           :board board
+           :rows rows
+           :cols cols})))
 
 (defn pow [n e]
   (apply * (repeat e n)))
@@ -48,7 +48,7 @@
       (+ 0.5 (/ v 200)))))
 
 (defn click-handler [channel box ev]
-  (do (put! channel [@box (condp = ev.button 0 10 1 0 2 -10)])
+  (do (put! channel [@box (condp = ev.button 0 :left 1 :mid 2 :right)])
       (.preventDefault ev)))
 
 (defn view-box [box _owner]
@@ -59,7 +59,7 @@
                     :onClick       (partial click-handler click box)
                     :onContextMenu (partial click-handler click box)}
         (dom/span #js {:className "box-text"}
-          (:v box))
+          (if (= 0 (:v box)) "XXX" (int (:v box))))
         (dom/div #js {:className "flex box-shim"}
           (dom/div #js {:className "box-hp"
                         :style     #js {"backgroundColor" (hp->rgb (:v box))
@@ -73,7 +73,7 @@
       (dom/div #js {:className "box"}
         #_(dom/span #js {:className "box-text"
                          :style     #js {:color "white"}}
-            (:v box))
+            (int (:v box)))
         (dom/div #js {:className "flex box-shim"}
           (dom/div #js {:className "box-hp"
                         :style     #js {:backgroundColor (mana->rgb (:v box))
@@ -83,38 +83,90 @@
 (defn heal [box v]
   (assoc-in box [:v] (max 0 (min 100 (+ (:v box) v)))))
 
-(defn heal-in [boxes box v]
-  (vec (map #(if (= % box) (heal % v) %) boxes)))
+(defn heal-in [boxes pred v]
+  (vec (map #(if (pred %) (heal % v) %) boxes)))
+
+(defn boxplus [a b]
+  (let [[aid bid] [(:id a) (:id b)]
+        m5 (mod aid 5)]
+    (or (= bid aid)
+        (= bid (- aid 5))
+        (= bid (+ aid 5))
+        (and (= bid (- aid 1)) (not= 1 m5))
+        (and (= bid (+ aid 1)) (not= 0 m5)))))
+
+(defn boxrow [a b]
+  (let [[aid bid] [(:id a) (:id b)]
+        c1 (- aid (mod (- aid 1) 5))]
+    (some #{bid} (range c1 (+ c1 5)))))
+
+(defn boxcol [a b]
+  (let [[aid bid] [(:id a) (:id b)]
+        d (utils/abs (- aid bid))]
+    (= 0 (mod d 5))))
+
+(def spells
+  ;; aim for ~10 hp / mana
+  {:single {:hp 27 :mana 9
+            :pred (fn [center box] (= center box))}
+   :row {:hp 20 :mana 15
+         :pred (fn [center box] (boxrow center box))}
+   :col {:hp 20 :mana 15
+         :pred (fn [center box] (boxcol center box))}
+   :plus {:hp 24 :mana 15
+           :pred (fn [center box] (boxplus center box))}}
+  )
+
+(def binds
+  {:left :col
+   :mid :single
+   :right :row})
+
+(def mana_regen 4)
+(def peril_scale 0.8)
+(def perils_by_delay
+  ; {freq_ms [pred(box) v]
+  {500 [[#(>= 0.25 (rand)) 3]]  ; 1.5 dps * 25
+   1500 [[#(>= 0.25 (rand)) 3]] ; 0.5 dps * 25
+   3000 [[#(= (:id %) (+ 1 (rand-int 25))) 30]] ; 10 dps
+   })
+
+(defn cast [data box input]
+  (let [{:keys [hp mana pred]} (get spells (get binds input))]
+    (if (and (>= (:v (:mana @app-state)) mana)
+          (> (:v box) 0))
+      (do
+        (om/transact! data :board
+          (fn [xs] (heal-in xs (partial pred box) hp)))
+        (om/transact! data :mana
+          (fn [x] (heal x (- mana))))))))
 
 (defn view-page [data owner]
   (reify
     om/IInitState
     (init-state [_]
       {:click (chan)
-       :tick (chan)})
+       :queue (chan)})
     om/IWillMount
     (will-mount [_]
       (do
-        (let [tick (om/get-state owner :tick)]
+        (go-loop []
+          (<! (async/timeout 500))
+          (om/transact! data :mana
+            (fn [x] (heal x mana_regen)))
+          (recur))
+        (doseq [[ms perils] perils_by_delay]
           (go-loop []
-            (<! (async/timeout 200))
-            (put! tick 0)
-            (recur)))
-        (let [tick (om/get-state owner :tick)]
-          (go-loop []
-            (<! tick)
-            (om/transact! data :mana
-              (fn [x] (heal x 1)))
-            (recur)))
+            (<! (async/timeout ms))
+            (doseq [[pred v] perils]
+              (om/transact! data :board
+                (fn [xs] (heal-in xs pred (- (* v peril_scale))))))
+            (recur))
+        )
         (let [click (om/get-state owner :click)]
           (go-loop []
-            (let [[box v] (<! click)]
-              (if (>= (:v (:mana @app-state)) v)
-                (do
-                  (om/transact! data :board
-                    (fn [xs] (vec (heal-in xs box v))))
-                  (om/transact! data :mana
-                    (fn [x] (heal x (- v))))))
+            (let [[box input] (<! click)]
+              (cast data box input)
               (recur))))
     ))
     om/IRenderState
