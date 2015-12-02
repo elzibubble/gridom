@@ -47,3 +47,7 @@
 
 (defn fmap [f m]
   (into (empty m) (for [[k v] m] [k (f v)])))
+
+(defn map-invert [m]
+  (reduce (fn [a [k v]] (assoc a k (conj (or (get a k) []) v)))
+    {} (map reverse (seq m))))

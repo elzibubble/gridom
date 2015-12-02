@@ -2,11 +2,16 @@
   (:require [om.core :as om :include-macros true]
             [gridom.utils :as utils]))
 
+;; TODO score
+;; TODO peril list
+;; TODO penalise death (live list)
+;; TODO key binds
+
 (def rows-n 5)
 (def cols-n 5)
 (def board-n (* rows-n cols-n))
-(def mana-regen 4)
-(def mana-eff 7.5)
+(def mana-regen 1)
+(def mana-eff 6)
 (def peril-scale 1)
 
 (defn mkbox [[id _v]]
@@ -20,7 +25,7 @@
 (def app-state
   (atom {:mana  100
          :board (mkboard board-n)
-         :live (vec (range board-n))}))
+         :live  (vec (range board-n))}))
 
 (defn dead? [box]
   (= 0 (:v box)))
@@ -31,14 +36,16 @@
   (if (alive? box)
     (assoc-in box [:v] (utils/minmax 0 (+ (:v box) v) 100))
     box))
-
+(defn hurt [box v] (heal box (* (- v) peril-scale)))
 (defn heal-in [boxes pred v]
   (vec (map #(if (pred %) (heal % v) %) boxes)))
+(defn hurt-in [boxes pred v]
+  (vec (map #(if (pred %) (hurt % v) %) boxes)))
 
 (defn mana-gain [data v]
   (assoc data :mana (utils/minmax 0 (+ (:mana data) v) 100)))
 
-(defn boxplus [a b]  ; TODO retest
+(defn boxplus [a b]
   (let [[aid bid] [(:id a) (:id b)]
         m5 (mod aid cols-n)]
     (or (= bid aid)
@@ -68,35 +75,63 @@
 
 (def spells
   (utils/fmap spell-cost
-    {:single {:hp   30 :targets 1
+    {:single {:name "Illumination"
+              :hp   50 :targets 1
               :pred (fn [center box] (= center box))}
-     :row    {:hp   20 :targets 5
+     :row    {:name "Wall of Light"
+              :hp   30 :targets 5
               :pred (fn [center box] (boxrow center box))}
-     :col    {:hp   20 :targets 5
+     :col    {:name "Lightray"
+              :hp   30 :targets 5
               :pred (fn [center box] (boxcol center box))}
-     :plus   {:hp   20 :targets 5
+     :plus   {:name "Radiant Burst"
+              :hp   30 :targets 5
               :pred (fn [center box] (boxplus center box))}
-     :all    {:hp   5 :targets 25
+     :all    {:name "Serenity"
+              :hp   10 :targets 25
               :pred (fn [center box] (boxplus center box))}
      }))
-(doseq [[k s] spells]
-  (print k (/ (* (:hp s) (:targets s)) (:mana s))))
 
 (def binds
   {:left  :col
-   :mid   :plus
-   :right :row})
+   :1     :col
+   :mid   :single
+   :2     :single
+   :right :row
+   :3     :row})
+
+(defn perbox_peril_fn [pred]
+  (fn perbox [peril data]
+    (assoc data :board (hurt-in (:board data) pred (:hp peril)))))
+
+(def perils
+  {:rand_25 {:name "Tremor"
+             :desc "25% chance of {:hp} damage to each raid member"
+             :func (perbox_peril_fn #(>= 0.25 (rand)))
+             :hp   3}
+   :slam    {:name "Slam"
+             :desc "{:hp} damage to one live raid member"
+             :func (fn [peril data]
+                     (if (= 0 (count (:live data))) data
+                       (let [n (rand-nth (:live data))
+                             box (nth (get data :board) n)]
+                         ; (print "Slam on " box)
+                         (assoc-in data [:board n]
+                           (hurt box (:hp peril))))))
+             :hp   30}
+   })
 
 (def perils_by_delay
   ; {freq_ms [pred(box) v]
-  {500  [[#(>= 0.25 (rand)) 3]]                             ; 1.5 dps * 25
-   1500 [[#(>= 0.25 (rand)) 3]]                             ; 0.5 dps * 25
-   3000 [[#(= (:id %) (+ 1 (rand-int 25))) 30]]             ; 10 dps
+  {500  [:rand_25]    ; 1.5 dps * 25
+   1500 [:rand_25]  ; 0.5 dps * 25
+   3000 [:slam]       ; 10 dps
    })
 
 (defn cast [data box input]
   (let [{:keys [hp mana pred]} (get spells (get binds input))]
-    (if (>= (:mana @app-state) mana)
+    (if (and (>= (:mana @app-state) mana)
+          (alive? box))
       (do
         ; TODO combine
         (om/transact! data

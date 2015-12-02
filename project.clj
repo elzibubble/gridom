@@ -25,16 +25,16 @@
                 :figwheel {:on-jsload "gridom.core/on-js-reload"}
 
                 :compiler {:main gridom.core
-                           :asset-path "js/compiled/out"
-                           :output-to "resources/public/js/compiled/gridom.js"
-                           :output-dir "resources/public/js/compiled/out"
+                           :asset-path "js/out"
+                           :output-to "resources/public/js/gridom.js"
+                           :output-dir "resources/public/js/out"
                            :source-map-timestamp true}}
                ;; This next build is an compressed minified build for
                ;; production. You can build this with:
                ;; lein cljsbuild once min
                {:id "min"
                 :source-paths ["src"]
-                :compiler {:output-to "resources/public/js/compiled/gridom.js"
+                :compiler {:output-to "resources/public/js/gridom.js"
                            :main gridom.core
                            :optimizations :advanced
                            :pretty-print false}}]}

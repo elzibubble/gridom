@@ -1,6 +1,6 @@
 /.idea
 /gridom.iml
-/resources/public/js/compiled/**
+/resources/public/js/out/**
 figwheel_server.log
 pom.xml
 *jar
