@@ -10,7 +10,6 @@
 (def rows-n 5)
 (def cols-n 5)
 (def board-n (* rows-n cols-n))
-(def mana-regen 1)
 (def mana-eff 6)
 (def peril-scale 1)
 
@@ -64,6 +63,10 @@
         d (Math/abs (- aid bid))]
     (= 0 (mod d 5))))
 
+(defn mana-regen [data]
+  (let [c (count (:live data))]
+    (* c (/ 1 25))))
+
 (defn target-bonus [targets]
   (/ (Math/log targets) (Math/log 5)))
 
@@ -104,6 +107,16 @@
   (fn perbox [peril data]
     (assoc data :board (hurt-in (:board data) pred (:hp peril)))))
 
+(defn idlist_peril_fn [ids_fn]
+  (fn [peril data]
+    (let [ids (ids_fn data)]
+      ;(print (:name peril) ids)
+      (reduce (fn [acc n]
+                (let [box (nth (get acc :board) n)]
+                  (assoc-in data [:board n]
+                    (hurt box (:hp peril)))))
+        data ids))))
+
 (def perils
   {:rand_25 {:name "Tremor"
              :desc "25% chance of {:hp} damage to each raid member"
@@ -111,21 +124,25 @@
              :hp   3}
    :slam    {:name "Slam"
              :desc "{:hp} damage to one live raid member"
-             :func (fn [peril data]
-                     (if (= 0 (count (:live data))) data
-                       (let [n (rand-nth (:live data))
-                             box (nth (get data :board) n)]
-                         ; (print "Slam on " box)
-                         (assoc-in data [:board n]
-                           (hurt box (:hp peril))))))
+             :func (idlist_peril_fn #(condp = (:live %)
+                                      [] []
+                                      [(rand-nth (:live %))]))
              :hp   30}
+   :rampage {:name "Rampage"
+             :desc "Don't let more than 5 people die!"
+             :func (idlist_peril_fn
+                     #(condp >= (count (:live %))
+                       0 []
+                       19 [(first (:live %))]
+                       []))
+             :hp   100}
    })
 
 (def perils_by_delay
-  ; {freq_ms [pred(box) v]
-  {500  [:rand_25]    ; 1.5 dps * 25
-   1500 [:rand_25]  ; 0.5 dps * 25
-   3000 [:slam]       ; 10 dps
+  {150  [:rampage]
+   500  [:rand_25]                                          ;; 1.5 dps * 25
+   1500 [:rand_25]                                          ;; 0.5 dps * 25
+   3000 [:slam]                                             ;; 10 dps
    })
 
 (defn cast [data box input]

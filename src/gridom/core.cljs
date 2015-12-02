@@ -10,7 +10,7 @@
   (go-loop []
     (<! (async/timeout 125))
     (om/transact! data
-      (fn [x] (game/mana-gain x game/mana-regen)))
+      (fn [x] (game/mana-gain x (game/mana-regen @game/app-state))))
     (recur))
   (doseq [[ms codes] game/perils_by_delay]
     (go-loop []
